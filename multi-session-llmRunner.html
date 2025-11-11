@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Multi-Session LLM (OpenRouter)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg: #020817;
+      --bg-elevated: #020817;
+      --bg-elevated-soft: #020817;
+      --border-subtle: rgba(148, 163, 253, 0.12);
+      --accent: #6366f1;
+      --accent-soft: rgba(99, 102, 241, 0.14);
+      --accent-soft-strong: rgba(129, 140, 248, 0.22);
+      --accent-muted: #a5b4fc;
+      --accent-alt: #22c55e;
+      --accent-alt-soft: rgba(34, 197, 94, 0.16);
+      --error: #f97373;
+      --error-soft: rgba(248, 113, 113, 0.14);
+      --text: #e5e7eb;
+      --text-soft: #9ca3af;
+      --radius-xl: 18px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+      --shadow-soft: 0 18px 60px rgba(15, 23, 42, 0.78);
+      --font: system-ui, -apple-system, BlinkMacSystemFont, -system-ui, sans-serif;
+      --transition-fast: 0.18s ease-out;
+      --transition-med: 0.26s ease-out;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 18px;
+      font-family: var(--font);
+      background:
+        radial-gradient(circle at top left, rgba(79, 70, 229, 0.18), transparent 55%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 50%),
+        radial-gradient(circle at bottom, rgba(22, 163, 74, 0.05), transparent 45%),
+        var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px 18px 22px;
+      background: radial-gradient(circle at top, rgba(148, 163, 253, 0.04), transparent),
+                  rgba(2, 6, 23, 0.98);
+      border-radius: 24px;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid rgba(148, 163, 253, 0.12);
+      backdrop-filter: blur(24px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-pill {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 253, 0.24);
+      background: radial-gradient(circle at top, rgba(79, 70, 229, 0.24), transparent);
+      color: var(--accent-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: var(--text-soft);
+      max-width: 520px;
+    }
+
+    .badge-key {
+      font-size: 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 253, 0.16);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--accent-muted);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 440px) minmax(0, 1.6fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: radial-gradient(circle at top left, rgba(99, 102, 241, 0.03), transparent),
+                  var(--bg-elevated);
+      border-radius: var(--radius-xl);
+      padding: 14px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.52);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at top, rgba(148, 163, 253, 0.03), transparent 65%);
+      mix-blend-mode: screen;
+      opacity: 0.9;
+    }
+
+    .panel-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent-muted);
+      margin-bottom: 3px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    input[type="password"],
+    input[type="number"],
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 7px 9px;
+      border-radius: 9px;
+      border: 1px solid rgba(75, 85, 99, 0.68);
+      background: radial-gradient(circle at top left, rgba(156, 163, 255, 0.06), transparent),
+                  rgba(6, 8, 20, 0.98);
+      color: var(--text);
+      font-size: 12px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color var(--transition-fast),
+                  box-shadow var(--transition-fast),
+                  background var(--transition-fast),
+                  transform var(--transition-fast);
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: rgba(156, 163, 175, 0.58);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.26),
+                  0 14px 32px rgba(15, 23, 42, 0.9);
+      transform: translateY(-1px);
+    }
+
+    textarea {
+      min-height: 80px;
+      max-height: 180px;
+      resize: vertical;
+    }
+
+    .helper {
+      font-size: 10px;
+      color: var(--text-soft);
+      margin-top: -4px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .row > div {
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .btn-primary {
+      padding: 9px 16px;
+      background: linear-gradient(to right, var(--accent), #4f46e5);
+      color: #f9fafb;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all var(--transition-med);
+      box-shadow: 0 10px 26px rgba(79, 70, 229, 0.55);
+      margin-top: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary span.spark {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(248, 250, 252, 0.14), transparent 70%);
+      mix-blend-mode: screen;
+      opacity: 0;
+      transition: opacity 0.25s ease-out;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 40px rgba(79, 70, 229, 0.7);
+    }
+
+    .btn-primary:hover span.spark { opacity: 1;
+    }
+
+    .btn-primary:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.9);
+    }
+
+    .btn-primary:disabled {
+      background: linear-gradient(to right, #4b5563, #374151);
+      box-shadow: none;
+      cursor: not-allowed;
+      opacity: 0.85;
+    }
+
+    .btn-icon { font-size: 14px;
+    }
+
+    .error {
+      color: var(--error);
+      font-size: 10px;
+      margin-top: 4px;
+    }
+
+    .sessions-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .sessions-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent-muted);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .sessions-subtitle {
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .sessions-layout {
+      display: grid;
+      grid-template-columns: 160px minmax(0, 1fr);
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 2px;
+      flex: 1;
+      min-height: 220px;
+      max-height: 420px;
+    }
+
+    @media (max-width: 800px) {
+      .sessions-layout { grid-template-columns: 1fr;
+      }
+    }
+
+    .session-list {
+      border-radius: 14px;
+      background: radial-gradient(circle at top, rgba(79, 70, 229, 0.12), transparent),
+                  rgba(3, 7, 21, 0.98);
+      border: 1px solid rgba(75, 85, 99, 0.75);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      font-size: 10px;
+    }
+
+    .session-list-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+      align-items: center;
+      margin-bottom: 3px;
+      color: var(--text-soft);
+    }
+
+    .session-filter {
+      display: inline-flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .filter-pill {
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-soft);
+      cursor: pointer;
+      font-size: 9px;
+      transition: all var(--transition-fast);
+    }
+
+    .filter-pill.active {
+      background: rgba(15, 23, 42, 0.98);
+      border-color: var(--accent-soft-strong);
+      color: var(--accent-muted);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.9);
+    }
+
+    .filter-pill:hover {
+      color: var(--accent-muted);
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .session-list-item {
+      padding: 4px 6px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      border: 1px solid transparent;
+      background: transparent;
+    }
+
+    .session-list-item span.index {
+      font-weight: 500;
+      color: var(--accent-muted);
+      font-size: 9px;
+    }
+
+    .session-list-item span.state {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 1px 5px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid rgba(75, 85, 99, 0.8);
+      background: rgba(9, 9, 18, 0.98);
+    }
+
+    .session-list-item .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(148, 163, 253, 0.7);
+    }
+
+    .session-list-item.pending .dot {
+      background: rgba(148, 163, 253, 0.9);
+      box-shadow: 0 0 8px rgba(129, 140, 248, 0.9);
+    }
+
+    .session-list-item.done .dot {
+      background: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.9);
+    }
+
+    .session-list-item.error .dot {
+      background: #f97373;
+      box-shadow: 0 0 8px rgba(248, 113, 113, 0.9);
+    }
+
+    .session-list-item.pending {
+      background: radial-gradient(circle at top, rgba(79, 70, 229, 0.16), transparent);
+      border-color: rgba(79, 70, 229, 0.36);
+      color: var(--accent-muted);
+    }
+
+    .session-list-item.done {
+      background: radial-gradient(circle at left, rgba(22, 163, 74, 0.14), transparent);
+      border-color: rgba(34, 197, 94, 0.26);
+      color: var(--accent-muted);
+    }
+
+    .session-list-item.error {
+      background: radial-gradient(circle at left, rgba(248, 113, 113, 0.12), transparent);
+      border-color: rgba(248, 113, 113, 0.32);
+      color: var(--error);
+    }
+
+    .session-list-item.active {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.98);
+      border-color: var(--accent);
+    }
+
+    .session-list-item:hover:not(.active) {
+      background: rgba(10, 16, 36, 0.98);
+      border-color: rgba(75, 85, 99, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .session-detail {
+      border-radius: 14px;
+      background: radial-gradient(circle at top, rgba(15, 23, 42, 0.9), transparent),
+                  rgba(2, 6, 23, 0.99);
+      border: 1px solid rgba(55, 65, 81, 0.95);
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .session-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .session-detail-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .session-detail-label strong {
+      font-size: 10px;
+      color: var(--accent-muted);
+      font-weight: 600;
+    }
+
+    .status-chip {
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid rgba(75, 85, 99, 0.9);
+      background: rgba(5, 7, 20, 0.98);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .status-chip .pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(148, 163, 253, 0.9);
+      box-shadow: 0 0 8px rgba(129, 140, 248, 0.9);
+      animation: pulse 1s infinite alternate;
+    }
+
+    .status-chip.done {
+      border-color: rgba(34, 197, 94, 0.6);
+      color: #bbf7d0;
+      background: var(--accent-alt-soft);
+    }
+
+    .status-chip.done .pulse {
+      background: #22c55e;
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.95);
+      animation: none;
+    }
+
+    .status-chip.error {
+      border-color: rgba(248, 113, 113, 0.7);
+      color: #fecaca;
+      background: var(--error-soft);
+    }
+
+    .status-chip.error .pulse {
+      background: #f97373;
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.95);
+      animation: none;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(0.9); opacity: 0.7;
+      }
+      to { transform: scale(1.2); opacity: 1;
+      }
+    }
+
+    .session-body {
+      flex: 1;
+      overflow-y: auto;
+      margin-top: 2px;
+      padding: 5px 6px;
+      border-radius: 10px;
+      background:
+        radial-gradient(circle at top, rgba(17, 24, 39, 0.96), transparent),
+        rgba(2, 6, 23, 0.98);
+      border: 1px solid rgba(31, 41, 55, 0.96);
+      font-size: 11px;
+      color: var(--text);
+    }
+
+    .session-body pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: var(--font);
+    }
+
+    .session-placeholder {
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .footer-note {
+      font-size: 9px;
+      color: var(--text-soft);
+      margin-top: 2px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      opacity: 0.9;
+    }
+
+    .footer-note span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .mini-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, 0.8);
+      box-shadow: 0 0 8px rgba(79, 70, 229, 0.9);
+    }
+
+    .append-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: 9px;
+      color: var(--text-soft);
+    }
+
+    .append-row input[type="checkbox"] {
+      width: 12px;
+      height: 12px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <div class="header">
+    <div class="title-block">
+      <div class="title">
+        Multi-Session LLM Runner
+        <span class="title-pill">
+          <span class="mini-dot"></span> OpenRouter Client
+        </span>
+      </div>
+      <div class="subtitle">
+        Fire your prompt into many parallel sessions, compare outputs instantly, and keep everything readable even at scale.
+      </div>
+    </div>
+    <div>
+      <div class="badge-key">
+        <span>Client-side only</span>
+        <span style="width:5px;height:5px;border-radius:999px;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.9);"></span>
+        <span style="color:var(--text-soft);">Your key never leaves your browser</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- LEFT: INPUT PANEL -->
+    <div class="panel">
+      <div class="panel-content">
+        <form id="multiForm">
+      
+          <div>
+            <label for="apiKey">OpenRouter API Key</label>
+            <input
+              id="apiKey"
+              type="password"
+              placeholder="SK-or-..."
+              value=""
+              required
+            />
+ 
+            <div class="helper">
+              Used only in your browser to call the OpenRouter API.
+              Not stored, not sent to any other server.
+            </div>
+          </div>
+
+          <div>
+            <label for="prompt">Prompt</label>
+            <textarea
+              id="prompt"
+              placeholder="Type your prompt here, or pick a template below."
+            ></textarea>
+          </div>
+
+          <div>
+            <label for="template">Template (optional)</label>
+            <select id="template">
+              <option value="">None</option>
+              <option value="brainstorm-ideas">Brainstorm: 10 creative ideas for X</option>
+              <option value="summarize">Summarize: clear, concise summary</option>
+              <option value="cold-email">Cold email: short, direct outreach</option>
+              <option value="code-review">Code review: analyze and improve code</option>
+            </select>
+            <div class="helper">
+              If you enter a prompt, it takes priority over the selected template.
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="sessionCount">Number of sessions</label>
+              <input
+                id="sessionCount"
+                type="number"
+                min="1"
+                max="10"
+                value="3"
+                required
+              />
+            </div>
+            <div>
+  
+              <label for="model">Model ID</label>
+              <input
+                id="model"
+                type="text"
+                value="mistralai/mistral-7b-instruct:free"
+              />
+         
+              <div class="helper">
+                Must be an OpenRouter compatible model ID (e.g., anthropic/claude-3-haiku).
+              </div>
+            </div>
+            <div>
+              <label for="temperature">Temperature</label>
+              <input
+                id="temperature"
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value="0.7"
+              />
+            </div>
+          </div>
+
+          <!-- Append toggle -->
+          <div class="append-row">
+            <input type="checkbox" id="appendSessions" />
+            <label for="appendSessions" style="margin:0; font-weight:400; color:var(--text-soft);">
+              Append sessions instead of resetting previous ones
+            </label>
+          </div>
+
+          <button id="runButton" 
+          type="button" class="btn-primary">
+            <span class="spark"></span>
+            <span class="btn-icon">⚡</span>
+            <span>Run Sessions</span>
+          </button>
+          <div id="error" class="error"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- RIGHT: SESSIONS PANEL -->
+    <div class="panel">
+      <div 
+      class="panel-content">
+        <div class="sessions-panel-header">
+          <div>
+            <div class="sessions-title">
+              <span>Sessions Overview</span>
+            </div>
+            <div class="sessions-subtitle">
+              Track all sessions, filter by status, and focus on one result at a time.
+            </div>
+          </div>
+        </div>
+
+        <div class="sessions-layout">
+          <!-- Session navigation -->
+          <div class="session-list">
+            <div class="session-list-header">
+              <div>Sessions</div>
+              <div class="session-filter">
+       
+                <button class="filter-pill active" data-filter="all" type="button">All</button>
+                <button class="filter-pill" data-filter="done" type="button">Done</button>
+                <button class="filter-pill" data-filter="error" type="button">Error</button>
+              </div>
+            </div>
+            <div id="sessionListItems">
+          
+              <div class="session-placeholder">
+                Start a run to see sessions here.
+              </div>
+            </div>
+          </div>
+
+          <!-- Session detail display -->
+          <div class="session-detail">
+            <div class="session-detail-header">
+              <div class="session-detail-label">
+                <strong id="detailSessionTitle">No session selected</strong>
+      
+                <span id="detailSessionInfo"></span>
+              </div>
+              <div id="detailStatusChip" class="status-chip">
+                <span class="pulse"></span>
+                <span>Status</span>
+              </div>
+            
+            </div>
+            <div class="session-body">
+              <pre id="detailContent" class="session-placeholder">
+Run sessions to view results.
+Click a session on the left to focus its response here.</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <span>
+      This version uses the OpenRouter API, allowing you to use hundreds of different LLMs.
+    </span>
+    <span>
+      Built for fast parallel exploration. Use the "Append" option to compare results across multiple runs.
+    </span>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById('multiForm');
+  const errorEl = document.getElementById('error');
+  const resultsListEl = document.getElementById('sessionListItems');
+  const runButton = document.getElementById('runButton'); 
+  const appendCheckbox = document.getElementById('appendSessions');
+
+  const detailTitleEl = document.getElementById('detailSessionTitle');
+  const detailInfoEl = document.getElementById('detailSessionInfo');
+  const detailStatusChip = document.getElementById('detailStatusChip');
+  const detailContentEl = document.getElementById('detailContent');
+
+  const filterButtons = document.querySelectorAll('.filter-pill');
+
+  let sessions = [];
+  let activeSessionIndex = null;
+  let currentFilter = 'all';
+
+  function getTemplatePrompt(id) {
+    switch (id) {
+      case 'brainstorm-ideas':
+        return 'Brainstorm 10 creative, actionable ideas for this topic: [REPLACE WITH TOPIC]. Provide concise bullet points.';
+      case 'summarize':
+        return 'Summarize the following content clearly and concisely, highlighting key points and actionable insights: [PASTE TEXT].';
+      case 'cold-email':
+        return 'Write a short, direct, and personalized cold email pitching this product/service: [DESCRIBE OFFER].';
+      case 'code-review':
+        return 'Review the following code, point out issues, and suggest improvements: [PASTE CODE].';
+      default:
+        return '';
+    }
+  }
+
+  // Helper for exponential backoff
+  async function fetchWithBackoff(url, options, maxRetries = 5, delay = 1000) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const response = await fetch(url, options);
+        if (response.status !== 429) return response; // Success or non-rate-limit error
+      } catch (e) {
+        // Network error, try again after delay
+      }
+      // Wait using exponential backoff
+      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+    }
+    // If all retries fail
+    throw new Error('API Request Failed: Exceeded maximum retry attempts.');
+  }
+
+
+  async function callOpenRouter({ apiKey, model, prompt, temperature, sessionIndex }) {
+    const apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+
+    // OpenRouter uses the standard chat completions format with a system message
+    const systemPrompt = `You are one of multiple independent sessions (#${sessionIndex + 1}). Your goal is to provide a unique, high-quality, and self-contained answer to the user's prompt.`;
+
+    const payload = {
+        model: model, // User-specified model ID
+        messages: [
+            {
+                role: "system",
+                content: systemPrompt
+            },
+            {
+                role: "user",
+                content: prompt
+            }
+        ],
+        temperature: temperature,
+        // OpenRouter specific fields for attribution (optional, but good practice)
+        // These can be modified or removed as needed
+        "metadata": {
+            "source": "multi-session-runner-canvas-app"
+        }
+    };
+
+    const response = await fetchWithBackoff(apiUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        // Important: OpenRouter requires a referrer or origin header for security
+        'HTTP-Referer': window.location.href, 
+        'X-Title': 'OpenRouter Multi-Session LLM App'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+        let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
+        try {
+            const errorData = await response.json();
+            // Try to extract the specific error message from the API response
+            errorMessage = errorData.error?.message || errorData.message || errorMessage;
+        } catch (e) {
+            const text = await response.text().catch(() => 'No response body');
+            errorMessage = text || errorMessage;
+        }
+        throw new Error(`API Request Failed: ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    if (!content) {
+        // This handles cases where the API returns success but no text (e.g., content filtering)
+        throw new Error('API Request Failed: Model returned no content (response was likely blocked or empty).');
+    }
+
+    return content;
+  }
+
+  function renderSessionList() {
+    resultsListEl.innerHTML = '';
+    const visible = sessions.filter((s) => {
+      if (currentFilter === 'done') return s.status === 'done';
+      if (currentFilter === 'error') return s.status === 'error';
+      return true;
+    });
+    if (!visible.length) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'session-placeholder';
+      placeholder.textContent =
+        sessions.length === 0
+          ?
+          'Start a run to see sessions here.'
+          : 'No sessions match this filter.';
+      resultsListEl.appendChild(placeholder);
+      return;
+    }
+
+    visible.forEach((s) => {
+      const item = document.createElement('div');
+      item.className = `session-list-item ${s.status} ${s.index === activeSessionIndex ? 'active' : ''}`;
+      item.dataset.index = s.index;
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '4px';
+
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+
+      const indexSpan = document.createElement('span');
+      indexSpan.className = 'index';
+      indexSpan.textContent = `#${s.index + 1}`;
+
+      left.appendChild(dot);
+      left.appendChild(indexSpan);
+
+      const right = document.createElement('span');
+      right.className = 'state';
+      if (s.status === 'pending') {
+        right.textContent = 'Pending';
+      } else if (s.status === 'done') {
+        right.textContent = 'Done';
+      } else {
+        right.textContent = 'Error';
+      }
+
+      item.appendChild(left);
+      item.appendChild(right);
+      item.addEventListener('click', () => {
+        setActiveSession(s.index);
+      });
+
+      resultsListEl.appendChild(item);
+    });
+  }
+
+  function setActiveSession(index) {
+    activeSessionIndex = index;
+    const s = sessions.find((x) => x.index === index);
+    if (!s) {
+      detailTitleEl.textContent = 'No session selected';
+      detailInfoEl.textContent = '';
+      detailContentEl.textContent =
+        'Run sessions to view results. Click a session on the left to focus its response here.';
+      detailStatusChip.className = 'status-chip';
+      detailStatusChip.innerHTML = '<span class="pulse"></span><span>Status</span>';
+      renderSessionList();
+      return;
+    }
+
+    detailTitleEl.textContent = `Session #${s.index + 1}`;
+    detailInfoEl.textContent =
+      s.status === 'pending'
+        ?
+        'Awaiting response...'
+        : s.status === 'done'
+          ?
+          'Completed'
+          : 'Request failed';
+    if (s.status === 'pending') {
+      detailStatusChip.className = 'status-chip';
+      detailStatusChip.innerHTML = '<span class="pulse"></span><span>Pending</span>';
+    } else if (s.status === 'done') {
+      detailStatusChip.className = 'status-chip done';
+      detailStatusChip.innerHTML = '<span class="pulse"></span><span>Done</span>';
+    } else {
+      detailStatusChip.className = 'status-chip error';
+      detailStatusChip.innerHTML = '<span class="pulse"></span><span>Error</span>';
+    }
+
+    if (s.status === 'error') {
+      // Show the detailed error message from the API
+      detailContentEl.textContent = s.error || 'Unknown error';
+    } else if (s.status === 'pending') {
+      detailContentEl.textContent = 'Waiting for response from OpenRouter...';
+    } else {
+      detailContentEl.textContent = s.content || '[No content returned]';
+    }
+
+    renderSessionList();
+  }
+
+  filterButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      filterButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      renderSessionList();
+
+      if (
+        activeSessionIndex !== null &&
+        !sessions.some(
+          (s) =>
+            s.index === activeSessionIndex &&
+            (currentFilter === 'all' ||
+              (currentFilter === 'done' && s.status === 'done') ||
+              (currentFilter === 'error' && s.status === 'error'))
+        )
+      ) {
+        detailTitleEl.textContent = 'No session selected';
+        detailInfoEl.textContent = '';
+        detailContentEl.textContent =
+        'No sessions match this filter. Select "All" to see everything.';
+        detailStatusChip.className = 'status-chip';
+        detailStatusChip.innerHTML = '<span class="pulse"></span><span>Status</span>';
+      }
+    });
+  });
+
+  runButton.addEventListener('click', async (e) => {
+    errorEl.textContent = '';
+
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const promptInput = document.getElementById('prompt').value.trim();
+    const templateId = document.getElementById('template').value;
+    const sessionCountInput = document.getElementById('sessionCount').value;
+    const sessionCount = parseInt(sessionCountInput, 10);
+    const model = document.getElementById('model').value.trim();
+    const temperature = parseFloat(document.getElementById('temperature').value) || 0.7;
+    const append = appendCheckbox.checked;
+
+    if (!apiKey) {
+      errorEl.textContent = 'Please enter your OpenRouter API key.';
+      return;
+    }
+
+    if (!model) {
+      errorEl.textContent = 'Please specify a model ID (e.g., "openai/gpt-3.5-turbo").';
+      return;
+    }
+   
+    if (!sessionCount || sessionCount < 1 || sessionCount > 10) {
+      errorEl.textContent = 'Number of sessions must be between 1 and 10 for stability.';
+      return;
+    }
+
+    let finalPrompt = promptInput;
+    if (!finalPrompt && templateId) {
+      finalPrompt = getTemplatePrompt(templateId);
+    }
+
+    if (!finalPrompt) {
+      errorEl.textContent = 'Enter a prompt or choose a template.';
+      return;
+    }
+
+    runButton.disabled = true;
+    runButton.innerHTML = '<span class="spark"></span><span class="btn-icon">⏳</span><span>Running...</span>';
+    
+    // Decide starting index based on append toggle
+    let startIndex;
+    if (append && sessions.length > 0) {
+      startIndex = sessions.length;
+    } else {
+      // Original behavior: reset sessions
+      sessions = [];
+      activeSessionIndex = null;
+      startIndex = 0;
+      renderSessionList();
+      setActiveSession(null);
+    }
+
+    // Create new session entries
+    const newSessions = [];
+    for (let i = 0; i < sessionCount; i++) {
+      const idx = startIndex + i;
+      const sessionObj = {
+        index: idx,
+        status: 'pending',
+        content: '',
+        error: null,
+      };
+      sessions.push(sessionObj);
+      newSessions.push(sessionObj);
+    }
+    renderSessionList();
+
+    // If nothing selected yet, select first of the new batch
+    if (activeSessionIndex === null && newSessions.length > 0) {
+      setActiveSession(newSessions[0].index);
+    }
+
+    // Fire all new sessions in parallel
+    const tasks = newSessions.map((s) => (async () => {
+      try {
+        const content = await callOpenRouter({
+          apiKey,
+          model,
+          prompt: finalPrompt,
+          temperature,
+          sessionIndex: s.index
+        });
+        s.status = 'done';
+        s.content = content;
+        s.error = null;
+      } catch (err) {
+        s.status = 'error';
+        s.error = err.message || 'Unknown error';
+      }
+
+      // Incremental UI update
+      renderSessionList();
+      if (activeSessionIndex === s.index || activeSessionIndex === null) {
+        setActiveSession(s.index);
+      }
+    })());
+
+    // Use Promise.allSettled to wait for all tasks, regardless of success/failure
+    await Promise.allSettled(tasks);
+
+    runButton.disabled = false;
+    runButton.innerHTML = '<span class="spark"></span><span class="btn-icon">⚡</span><span>Run Sessions</span>';
+  });
+</script>
+</body>
+</html>
