@@ -732,6 +732,27 @@
       font-size: 12px;
       color: var(--text);
     }
+
+    .task-list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      border-radius: var(--radius-md);
+      background: rgba(15, 23, 42, 0.98);
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 8px;
+    }
+
+    .task-list-item-name {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .task-list-item-actions {
+      display: flex;
+      gap: 8px;
+    }
   </style>
 </head>
 <body>
@@ -758,6 +779,12 @@
         <span style="width:5px;height:5px;border-radius:999px;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.9);"></span>
         <span style="color:var(--text-soft);">Your key never leaves your browser</span>
       </div>
+    </div>
+    <div class="button-group">
+        <button id="taskManagerButton" type="button" class="btn-secondary">
+            <span class="btn-icon">📋</span>
+            <span>Task Manager</span>
+        </button>
     </div>
   </div>
 
@@ -845,6 +872,18 @@
             </div>
           </div>
 
+          <div class="row">
+            <div>
+              <label for="timeLimit">Time limit (minutes, 0 for none)</label>
+              <input
+                id="timeLimit"
+                type="number"
+                min="0"
+                value="0"
+              />
+            </div>
+          </div>
+
           <!-- Append toggle -->
           <div class="append-row">
             <input type="checkbox" id="appendSessions" />
@@ -858,6 +897,15 @@
               <span class="spark"></span>
               <span class="btn-icon">⚡</span>
               <span>Run Sessions</span>
+            </button>
+            <button id="runIndefinitelyButton" type="button" class="btn-primary" style="background: linear-gradient(to right, #22c55e, #16a34a);">
+              <span class="spark"></span>
+              <span class="btn-icon">🔄</span>
+              <span>Run Indefinitely</span>
+            </button>
+            <button id="stopButton" type="button" class="btn-danger" style="display: none;">
+                <span class="btn-icon">⏹️</span>
+                <span>Stop</span>
             </button>
             <button id="saveButton" type="button" class="btn-secondary">
               <span class="btn-icon">💾</span>
@@ -952,14 +1000,51 @@ Click a session on the left to focus its response here.</pre>
 </div>
 
 <div id="compareModal" class="modal-overlay" style="display: none;">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2>Compare Sessions</h2>
-      <button id="closeModal" class="modal-close-btn">&times;</button>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Compare Sessions</h2>
+        <button id="closeModal" class="modal-close-btn">&times;</button>
+      </div>
+      <div id="compareContent" class="modal-body"></div>
     </div>
-    <div id="compareContent" class="modal-body"></div>
   </div>
-</div>
+
+  <div id="taskManagerModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h2>Task Manager</h2>
+            <button id="closeTaskManagerModal" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body" style="grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h3>Create a New Task</h3>
+                <form id="taskForm">
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskName">Task Name</label>
+                        <input type="text" id="taskName" placeholder="e.g., Creative Writing" required>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskSessionCount">Number of Sessions</label>
+                        <input type="number" id="taskSessionCount" min="1" max="10" value="3" required>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskModel">Model ID</label>
+                        <input type="text" id="taskModel" value="mistralai/mistral-7b-instruct:free">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskPrompt">Prompt (leave blank for random)</label>
+                        <textarea id="taskPrompt" placeholder="e.g., Write a story about..."></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary">Save Task</button>
+                </form>
+            </div>
+            <div>
+                <h3>Saved Tasks</h3>
+                <div id="taskList" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+  </div>
 
 <!-- JAVASCRIPT LOGIC -->
 <script>
@@ -968,6 +1053,8 @@ Click a session on the left to focus its response here.</pre>
   const errorEl = document.getElementById('error');
   const resultsListEl = document.getElementById('sessionListItems');
   const runButton = document.getElementById('runButton');
+  const runIndefinitelyButton = document.getElementById('runIndefinitelyButton');
+  const stopButton = document.getElementById('stopButton');
   const saveButton = document.getElementById('saveButton');
   const loadButton = document.getElementById('loadButton');
   const clearButton = document.getElementById('clearButton');
@@ -997,6 +1084,7 @@ Click a session on the left to focus its response here.</pre>
   let sessions = [];
   let activeSessionIndex = null;
   let currentFilter = 'all';
+  let tasks = [];
 
   // PROMPT TEMPLATES
   function getTemplatePrompt(id) {
@@ -1309,9 +1397,257 @@ Click a session on the left to focus its response here.</pre>
     if (event.target === compareModal) {
         compareModal.style.display = 'none';
     }
+    if (event.target === taskManagerModal) {
+        taskManagerModal.style.display = 'none';
+    }
   });
 
+  // TASK MANAGER LOGIC
+  const taskManagerButton = document.getElementById('taskManagerButton');
+  const taskManagerModal = document.getElementById('taskManagerModal');
+  const closeTaskManagerModal = document.getElementById('closeTaskManagerModal');
+  const taskForm = document.getElementById('taskForm');
+  const taskListEl = document.getElementById('taskList');
+
+  function saveTasks() {
+    localStorage.setItem('multiSessionLLM-tasks', JSON.stringify(tasks));
+  }
+
+  function loadTasks() {
+    const savedTasks = localStorage.getItem('multiSessionLLM-tasks');
+    if (savedTasks) {
+      tasks = JSON.parse(savedTasks);
+      renderTaskList();
+    }
+  }
+
+  function renderTaskList() {
+    taskListEl.innerHTML = '';
+    if (tasks.length === 0) {
+      taskListEl.innerHTML = '<div class="session-placeholder">No tasks saved yet.</div>';
+      return;
+    }
+
+    tasks.forEach((task, index) => {
+      const item = document.createElement('div');
+      item.className = 'task-list-item';
+      item.innerHTML = `
+        <div class="task-list-item-name">${task.name}</div>
+        <div class="task-list-item-actions">
+          <button class="btn-secondary" data-index="${index}" title="Run Now">▶️</button>
+          <button class="btn-secondary" data-index="${index}" title="Schedule">🗓️</button>
+          <button class="btn-danger" data-index="${index}" title="Delete">🗑️</button>
+        </div>
+      `;
+      taskListEl.appendChild(item);
+    });
+  }
+
+  function runTask(task) {
+    document.getElementById('sessionCount').value = task.sessionCount;
+    document.getElementById('model').value = task.model;
+    document.getElementById('prompt').value = task.prompt;
+
+    // If prompt is empty, generate a random one
+    if (!task.prompt) {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        if (apiKey && task.model) {
+            generateNewPrompt(apiKey, task.model, "Write a random sentence.").then(newPrompt => {
+                document.getElementById('prompt').value = newPrompt;
+                document.getElementById('runButton').click();
+            });
+        } else {
+            showNotification('API key and model needed to generate a random prompt for the task.', true);
+        }
+    } else {
+        document.getElementById('runButton').click();
+    }
+
+    taskManagerModal.style.display = 'none';
+    showNotification(`Running task: ${task.name}`);
+}
+
+
+  taskManagerButton.addEventListener('click', () => {
+    taskManagerModal.style.display = 'flex';
+    renderTaskList();
+  });
+
+  closeTaskManagerModal.addEventListener('click', () => {
+    taskManagerModal.style.display = 'none';
+  });
+
+  taskForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const newTask = {
+      name: document.getElementById('taskName').value.trim(),
+      sessionCount: parseInt(document.getElementById('taskSessionCount').value, 10),
+      model: document.getElementById('taskModel').value.trim(),
+      prompt: document.getElementById('taskPrompt').value.trim(),
+    };
+    tasks.push(newTask);
+    saveTasks();
+    renderTaskList();
+    taskForm.reset();
+  });
+
+  taskListEl.addEventListener('click', (e) => {
+    if (e.target.tagName === 'BUTTON') {
+      const index = e.target.dataset.index;
+      const task = tasks[index];
+      if (e.target.title === 'Delete') {
+        tasks.splice(index, 1);
+        saveTasks();
+        renderTaskList();
+      } else if (e.target.title === 'Run Now') {
+        runTask(task);
+      } else if (e.target.title === 'Schedule') {
+        const delay = prompt('Enter delay in minutes:', '10');
+        if (delay) {
+            setTimeout(() => runTask(task), parseInt(delay, 10) * 60 * 1000);
+            showNotification(`Task "${task.name}" scheduled to run in ${delay} minutes.`);
+        }
+      }
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', loadTasks);
+
   // MAIN RUN LOGIC
+  let isRunningIndefinitely = false;
+  let indefiniteRunTimeout;
+
+  async function generateNewPrompt(apiKey, model, originalPrompt) {
+    const generationPrompt = `Based on the following prompt, generate a new, related prompt:\n\n${originalPrompt}`;
+    try {
+      const newPrompt = await callOpenRouter({
+        apiKey,
+        model,
+        prompt: generationPrompt,
+        temperature: 0.8,
+        sessionIndex: -1, // Indicates a meta-prompt
+      });
+      return newPrompt.trim();
+    } catch (error) {
+      showNotification('Could not generate a new prompt. Reusing the previous one.', true);
+      return originalPrompt; // Fallback to original prompt
+    }
+  }
+
+  async function runIndefinitely() {
+    if (!isRunningIndefinitely) return;
+
+    errorEl.textContent = '';
+
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const promptInput = document.getElementById('prompt').value.trim();
+    const templateId = document.getElementById('template').value;
+    const sessionCountInput = document.getElementById('sessionCount').value;
+    const sessionCount = parseInt(sessionCountInput, 10);
+    const model = document.getElementById('model').value.trim();
+    const temperature = parseFloat(document.getElementById('temperature').value) || 0.7;
+    const append = appendCheckbox.checked;
+
+    if (!apiKey || !model || !sessionCount || sessionCount < 1 || sessionCount > 10) {
+      showNotification('Please check your API key, model, and session count (1-10).', true);
+      stopIndefiniteRun();
+      return;
+    }
+
+    let finalPrompt = promptInput;
+    if (!finalPrompt && templateId) {
+      finalPrompt = getTemplatePrompt(templateId);
+    }
+    if (!finalPrompt) {
+      showNotification('Enter a prompt or choose a template.', true);
+      stopIndefiniteRun();
+      return;
+    }
+
+    // Run a single iteration
+    await runSingleIteration(apiKey, finalPrompt, sessionCount, model, temperature, append);
+
+    // Generate the next prompt
+    const newPrompt = await generateNewPrompt(apiKey, model, finalPrompt);
+    document.getElementById('prompt').value = newPrompt;
+
+    // Loop
+    if (isRunningIndefinitely) {
+      runIndefinitely();
+    }
+  }
+
+  function stopIndefiniteRun() {
+    isRunningIndefinitely = false;
+    clearTimeout(indefiniteRunTimeout);
+    runIndefinitelyButton.style.display = 'inline-flex';
+    stopButton.style.display = 'none';
+    runButton.disabled = false;
+    showNotification('Stopped indefinite run.');
+  }
+
+  runIndefinitelyButton.addEventListener('click', () => {
+    isRunningIndefinitely = true;
+    runIndefinitelyButton.style.display = 'none';
+    stopButton.style.display = 'inline-flex';
+    runButton.disabled = true;
+
+    const timeLimitInput = document.getElementById('timeLimit').value;
+    const timeLimit = parseInt(timeLimitInput, 10) * 60 * 1000;
+
+    if (timeLimit > 0) {
+      indefiniteRunTimeout = setTimeout(() => {
+        if (isRunningIndefinitely) {
+          stopIndefiniteRun();
+          showNotification('Time limit reached.', false);
+        }
+      }, timeLimit);
+    }
+
+    runIndefinitely();
+  });
+
+  stopButton.addEventListener('click', stopIndefiniteRun);
+
+  async function runSingleIteration(apiKey, prompt, sessionCount, model, temperature, append) {
+    let startIndex;
+    if (append && sessions.length > 0) {
+      startIndex = sessions.length;
+    } else {
+      sessions = [];
+      activeSessionIndex = null;
+      startIndex = 0;
+    }
+
+    const newSessions = [];
+    for (let i = 0; i < sessionCount; i++) {
+      const idx = startIndex + i;
+      const sessionObj = { index: idx, status: 'pending', content: '', error: null };
+      sessions.push(sessionObj);
+      newSessions.push(sessionObj);
+    }
+    renderSessionList();
+    if (activeSessionIndex === null && newSessions.length > 0) {
+      setActiveSession(newSessions[0].index);
+    }
+
+    const tasks = newSessions.map((s) => (async () => {
+      try {
+        const content = await callOpenRouter({ apiKey, model, prompt, temperature, sessionIndex: s.index });
+        s.status = 'done';
+        s.content = content;
+      } catch (err) {
+        s.status = 'error';
+        s.error = err.message || 'Unknown error';
+      }
+      renderSessionList();
+      if (activeSessionIndex === s.index) {
+        setActiveSession(s.index);
+      }
+    })());
+    await Promise.allSettled(tasks);
+  }
+
   runButton.addEventListener('click', async (e) => {
     errorEl.textContent = '';
 
@@ -1333,7 +1669,7 @@ Click a session on the left to focus its response here.</pre>
       errorEl.textContent = 'Please specify a model ID (e.g., "openai/gpt-3.5-turbo").';
       return;
     }
-   
+
     if (!sessionCount || sessionCount < 1 || sessionCount > 10) {
       errorEl.textContent = 'Number of sessions must be between 1 and 10 for stability.';
       return;
@@ -1351,67 +1687,8 @@ Click a session on the left to focus its response here.</pre>
 
     runButton.disabled = true;
     runButton.innerHTML = '<span class="spark"></span><span class="btn-icon">⏳</span><span>Running...</span>';
-    
-    // Decide starting index based on append toggle
-    let startIndex;
-    if (append && sessions.length > 0) {
-      startIndex = sessions.length;
-    } else {
-      // Original behavior: reset sessions
-      sessions = [];
-      activeSessionIndex = null;
-      startIndex = 0;
-      renderSessionList();
-      setActiveSession(null);
-    }
 
-    // Create new session entries
-    const newSessions = [];
-    for (let i = 0; i < sessionCount; i++) {
-      const idx = startIndex + i;
-      const sessionObj = {
-        index: idx,
-        status: 'pending',
-        content: '',
-        error: null,
-      };
-      sessions.push(sessionObj);
-      newSessions.push(sessionObj);
-    }
-    renderSessionList();
-
-    // If nothing selected yet, select first of the new batch
-    if (activeSessionIndex === null && newSessions.length > 0) {
-      setActiveSession(newSessions[0].index);
-    }
-
-    // Fire all new sessions in parallel
-    const tasks = newSessions.map((s) => (async () => {
-      try {
-        const content = await callOpenRouter({
-          apiKey,
-          model,
-          prompt: finalPrompt,
-          temperature,
-          sessionIndex: s.index
-        });
-        s.status = 'done';
-        s.content = content;
-        s.error = null;
-      } catch (err) {
-        s.status = 'error';
-        s.error = err.message || 'Unknown error';
-      }
-
-      // Incremental UI update
-      renderSessionList();
-      if (activeSessionIndex === s.index || activeSessionIndex === null) {
-        setActiveSession(s.index);
-      }
-    })());
-
-    // Use Promise.allSettled to wait for all tasks, regardless of success/failure
-    await Promise.allSettled(tasks);
+    await runSingleIteration(apiKey, finalPrompt, sessionCount, model, temperature, append);
 
     runButton.disabled = false;
     runButton.innerHTML = '<span class="spark"></span><span class="btn-icon">⚡</span><span>Run Sessions</span>';
