@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <title>Multi-Session LLM (OpenRouter)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- CSS STYLES -->
   <style>
+    /* VARIABLES AND GLOBAL STYLES */
     :root {
       --bg: #020817;
       --bg-elevated: #020817;
@@ -44,6 +47,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* LAYOUT AND APP SHELL */
     .app-shell {
       max-width: 1200px;
       margin: 0 auto;
@@ -607,10 +611,135 @@
       cursor: pointer;
       accent-color: var(--accent);
     }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-secondary {
+      padding: 9px 16px;
+      background: rgba(75, 85, 99, 0.5);
+      color: #f9fafb;
+      border: 1px solid rgba(75, 85, 99, 0.8);
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all var(--transition-med);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--accent);
+    }
+
+    .btn-danger {
+      padding: 9px 16px;
+      background: rgba(248, 113, 113, 0.14);
+      color: #fecaca;
+      border: 1px solid rgba(248, 113, 113, 0.32);
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all var(--transition-med);
+    }
+
+    .btn-danger:hover {
+      background: rgba(248, 113, 113, 0.2);
+      border-color: var(--error);
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      width: 90%;
+      max-width: 1000px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      color: var(--accent-muted);
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-soft);
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 15px;
+    }
+
+    .comparison-item {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      background: rgba(2, 6, 23, 0.98);
+    }
+
+    .comparison-item h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: var(--accent-muted);
+    }
+
+    .comparison-item pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 12px;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
+
+<!-- APP WRAPPER -->
 <div class="app-shell">
+
+  <!-- HEADER -->
   <div class="header">
     <div class="title-block">
       <div class="title">
@@ -632,7 +761,9 @@
     </div>
   </div>
 
+  <!-- MAIN LAYOUT -->
   <div class="layout">
+
     <!-- LEFT: INPUT PANEL -->
     <div class="panel">
       <div class="panel-content">
@@ -722,12 +853,25 @@
             </label>
           </div>
 
-          <button id="runButton" 
-          type="button" class="btn-primary">
-            <span class="spark"></span>
-            <span class="btn-icon">⚡</span>
-            <span>Run Sessions</span>
-          </button>
+          <div class="button-group">
+            <button id="runButton" type="button" class="btn-primary">
+              <span class="spark"></span>
+              <span class="btn-icon">⚡</span>
+              <span>Run Sessions</span>
+            </button>
+            <button id="saveButton" type="button" class="btn-secondary">
+              <span class="btn-icon">💾</span>
+              <span>Save</span>
+            </button>
+            <button id="loadButton" type="button" class="btn-secondary">
+              <span class="btn-icon">📂</span>
+              <span>Load</span>
+            </button>
+            <button id="clearButton" type="button" class="btn-danger">
+              <span class="btn-icon">🗑️</span>
+              <span>Clear</span>
+            </button>
+          </div>
           <div id="error" class="error"></div>
         </form>
       </div>
@@ -746,6 +890,10 @@
               Track all sessions, filter by status, and focus on one result at a time.
             </div>
           </div>
+          <button id="compareButton" class="btn-secondary" style="display: none;">
+            <span class="btn-icon">⚖️</span>
+            <span>Compare Selected</span>
+          </button>
         </div>
 
         <div class="sessions-layout">
@@ -803,24 +951,54 @@ Click a session on the left to focus its response here.</pre>
   </div>
 </div>
 
+<div id="compareModal" class="modal-overlay" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Compare Sessions</h2>
+      <button id="closeModal" class="modal-close-btn">&times;</button>
+    </div>
+    <div id="compareContent" class="modal-body"></div>
+  </div>
+</div>
+
+<!-- JAVASCRIPT LOGIC -->
 <script>
+  // DOM ELEMENT SELECTION
   const form = document.getElementById('multiForm');
   const errorEl = document.getElementById('error');
   const resultsListEl = document.getElementById('sessionListItems');
-  const runButton = document.getElementById('runButton'); 
+  const runButton = document.getElementById('runButton');
+  const saveButton = document.getElementById('saveButton');
+  const loadButton = document.getElementById('loadButton');
+  const clearButton = document.getElementById('clearButton');
   const appendCheckbox = document.getElementById('appendSessions');
 
   const detailTitleEl = document.getElementById('detailSessionTitle');
   const detailInfoEl = document.getElementById('detailSessionInfo');
   const detailStatusChip = document.getElementById('detailStatusChip');
   const detailContentEl = document.getElementById('detailContent');
+  const templateEl = document.getElementById('template');
+  const promptEl = document.getElementById('prompt');
+  const compareButton = document.getElementById('compareButton');
+  const compareModal = document.getElementById('compareModal');
+  const closeModal = document.getElementById('closeModal');
+  const compareContent = document.getElementById('compareContent');
 
   const filterButtons = document.querySelectorAll('.filter-pill');
 
+  templateEl.addEventListener('change', () => {
+    const templateId = templateEl.value;
+    if (templateId) {
+      promptEl.value = getTemplatePrompt(templateId);
+    }
+  });
+
+  // APP STATE
   let sessions = [];
   let activeSessionIndex = null;
   let currentFilter = 'all';
 
+  // PROMPT TEMPLATES
   function getTemplatePrompt(id) {
     switch (id) {
       case 'brainstorm-ideas':
@@ -836,7 +1014,7 @@ Click a session on the left to focus its response here.</pre>
     }
   }
 
-  // Helper for exponential backoff
+  // API CALL LOGIC
   async function fetchWithBackoff(url, options, maxRetries = 5, delay = 1000) {
     for (let i = 0; i < maxRetries; i++) {
       try {
@@ -915,6 +1093,12 @@ Click a session on the left to focus its response here.</pre>
     return content;
   }
 
+  // UI RENDERING
+  function updateCompareButtonVisibility() {
+    const selectedCount = sessions.filter(s => s.selectedForComparison).length;
+    compareButton.style.display = selectedCount >= 2 ? 'inline-flex' : 'none';
+  }
+
   function renderSessionList() {
     resultsListEl.innerHTML = '';
     const visible = sessions.filter((s) => {
@@ -944,6 +1128,15 @@ Click a session on the left to focus its response here.</pre>
       left.style.alignItems = 'center';
       left.style.gap = '4px';
 
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = s.selectedForComparison;
+      checkbox.addEventListener('change', (e) => {
+          e.stopPropagation();
+          s.selectedForComparison = e.target.checked;
+          updateCompareButtonVisibility();
+      });
+
       const dot = document.createElement('div');
       dot.className = 'dot';
 
@@ -951,6 +1144,7 @@ Click a session on the left to focus its response here.</pre>
       indexSpan.className = 'index';
       indexSpan.textContent = `#${s.index + 1}`;
 
+      left.appendChild(checkbox);
       left.appendChild(dot);
       left.appendChild(indexSpan);
 
@@ -972,6 +1166,7 @@ Click a session on the left to focus its response here.</pre>
 
       resultsListEl.appendChild(item);
     });
+    updateCompareButtonVisibility();
   }
 
   function setActiveSession(index) {
@@ -1047,6 +1242,76 @@ Click a session on the left to focus its response here.</pre>
     });
   });
 
+  // NOTIFICATION & LOCAL STORAGE
+  function showNotification(message, isError = false) {
+    errorEl.textContent = message;
+    errorEl.style.color = isError ? 'var(--error)' : 'var(--accent-alt)';
+    setTimeout(() => {
+        if (errorEl.textContent === message) {
+            errorEl.textContent = '';
+            errorEl.style.color = 'var(--error)';
+        }
+    }, 3000);
+  }
+
+  saveButton.addEventListener('click', () => {
+    if (sessions.length === 0) {
+        showNotification('No sessions to save.', true);
+        return;
+    }
+    localStorage.setItem('multiSessionLLM-sessions', JSON.stringify(sessions));
+    showNotification('Sessions saved successfully!');
+  });
+
+  loadButton.addEventListener('click', () => {
+    const savedSessions = localStorage.getItem('multiSessionLLM-sessions');
+    if (savedSessions) {
+        sessions = JSON.parse(savedSessions);
+        renderSessionList();
+        setActiveSession(null); // Deselect any active session
+        showNotification('Sessions loaded successfully!');
+    } else {
+        showNotification('No saved sessions found.', true);
+    }
+  });
+
+  clearButton.addEventListener('click', () => {
+    localStorage.removeItem('multiSessionLLM-sessions');
+    sessions = [];
+    activeSessionIndex = null;
+    renderSessionList();
+    setActiveSession(null);
+    showNotification('Cleared saved sessions.');
+  });
+
+  compareButton.addEventListener('click', () => {
+    const selectedSessions = sessions.filter(s => s.selectedForComparison);
+    compareContent.innerHTML = '';
+    selectedSessions.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'comparison-item';
+        const title = document.createElement('h3');
+        title.textContent = `Session #${s.index + 1}`;
+        const content = document.createElement('pre');
+        content.textContent = s.content || s.error || '[No content]';
+        item.appendChild(title);
+        item.appendChild(content);
+        compareContent.appendChild(item);
+    });
+    compareModal.style.display = 'flex';
+  });
+
+  closeModal.addEventListener('click', () => {
+    compareModal.style.display = 'none';
+  });
+
+  window.addEventListener('click', (event) => {
+    if (event.target === compareModal) {
+        compareModal.style.display = 'none';
+    }
+  });
+
+  // MAIN RUN LOGIC
   runButton.addEventListener('click', async (e) => {
     errorEl.textContent = '';
 
