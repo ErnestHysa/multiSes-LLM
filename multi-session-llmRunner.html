@@ -118,7 +118,7 @@
 
     .layout {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 14px;
       align-items: stretch;
     }
@@ -951,6 +951,16 @@
                         <label for="taskPrompt">Prompt (leave blank for random)</label>
                         <textarea id="taskPrompt" placeholder="e.g., Write a story about..."></textarea>
                     </div>
+                    <div class="row" style="margin-bottom: 10px;">
+                        <div>
+                            <label for="taskDelay">Delay (minutes)</label>
+                            <input type="number" id="taskDelay" min="0">
+                        </div>
+                        <div>
+                            <label for="taskRunTime">Specific Time</label>
+                            <input type="datetime-local" id="taskRunTime">
+                        </div>
+                    </div>
                     <button type="submit" class="btn-primary">Save Task</button>
                 </form>
             </div>
@@ -994,6 +1004,21 @@
             </div>
         </div>
     </div>
+
+<!-- Completed Tasks Panel -->
+<div class="panel">
+    <div class="panel-content">
+        <div class="sessions-panel-header">
+            <div>
+                <div class="sessions-title"><span>Completed Task Outputs</span></div>
+                <div class="sessions-subtitle">Review the output from completed tasks.</div>
+            </div>
+        </div>
+        <div id="completedTaskList" class="session-list" style="max-height: 420px; overflow-y: auto;">
+            <div class="session-placeholder">Completed tasks will appear here.</div>
+        </div>
+    </div>
+</div>
 </div>
 
   <div class="footer-note">
@@ -1015,6 +1040,16 @@
       <div id="compareContent" class="modal-body"></div>
     </div>
   </div>
+
+<div id="taskOutputModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="taskOutputModalTitle">Task Output</h2>
+            <button id="closeTaskOutputModal" class="modal-close-btn">&times;</button>
+        </div>
+        <div id="taskOutputModalBody" class="modal-body"></div>
+    </div>
+</div>
 
 <!-- JAVASCRIPT LOGIC -->
 <script>
@@ -1040,6 +1075,11 @@
   const compareModal = document.getElementById('compareModal');
   const closeModal = document.getElementById('closeModal');
   const compareContent = document.getElementById('compareContent');
+  const taskOutputModal = document.getElementById('taskOutputModal');
+  const closeTaskOutputModal = document.getElementById('closeTaskOutputModal');
+  const taskOutputModalTitle = document.getElementById('taskOutputModalTitle');
+  const taskOutputModalBody = document.getElementById('taskOutputModalBody');
+  const completedTaskListEl = document.getElementById('completedTaskList');
 
   const filterButtons = document.querySelectorAll('.filter-pill');
 
@@ -1056,6 +1096,8 @@
   let currentFilter = 'all';
   let tasks = [];
   let activeTasks = [];
+  let completedTasks = [];
+  let editingTaskIndex = null;
 
   // PROMPT TEMPLATES
   function getTemplatePrompt(id) {
@@ -1318,6 +1360,7 @@
         sessions: sessions,
         tasks: tasks,
         activeTasks: activeTasks,
+        completedTasks: completedTasks,
         inputs: {
             apiKey: document.getElementById('apiKey').value,
             prompt: document.getElementById('prompt').value,
@@ -1340,6 +1383,7 @@
         sessions = data.sessions || [];
         tasks = data.tasks || [];
         activeTasks = data.activeTasks || [];
+        completedTasks = data.completedTasks || [];
 
         const inputs = data.inputs || {};
         document.getElementById('apiKey').value = inputs.apiKey || '';
@@ -1354,6 +1398,7 @@
         renderSessionList();
         renderTaskList();
         renderActiveTasks();
+        renderCompletedTasks();
         setActiveSession(null);
         showNotification('Loaded saved state successfully!');
     } else {
@@ -1366,10 +1411,12 @@
     sessions = [];
     tasks = [];
     activeTasks = [];
+    completedTasks = [];
     activeSessionIndex = null;
     renderSessionList();
     renderTaskList();
     renderActiveTasks();
+    renderCompletedTasks();
     setActiveSession(null);
     showNotification('Cleared all saved data.');
   });
@@ -1399,7 +1446,63 @@
     if (event.target === compareModal) {
         compareModal.style.display = 'none';
     }
+    if (event.target === taskOutputModal) {
+        taskOutputModal.style.display = 'none';
+    }
   });
+
+  closeTaskOutputModal.addEventListener('click', () => {
+    taskOutputModal.style.display = 'none';
+  });
+
+  function renderCompletedTasks() {
+    completedTaskListEl.innerHTML = '';
+    if (completedTasks.length === 0) {
+        completedTaskListEl.innerHTML = '<div class="session-placeholder">Completed tasks will appear here.</div>';
+        return;
+    }
+
+    completedTasks.forEach((task, index) => {
+        const item = document.createElement('div');
+        item.className = 'session-list-item done'; // Re-use session item styling
+        item.dataset.index = index;
+        item.style.cursor = 'pointer';
+        item.innerHTML = `<div class="dot"></div><span>${task.name}</span>`;
+        item.addEventListener('click', () => showTaskOutput(index));
+        completedTaskListEl.appendChild(item);
+    });
+  }
+
+  function showTaskOutput(index) {
+      const task = completedTasks[index];
+      if (!task) return;
+
+      taskOutputModalTitle.textContent = `Output: ${task.name}`;
+      taskOutputModalBody.innerHTML = '';
+
+      const details = document.createElement('div');
+      details.innerHTML = `
+        <p><strong>Model:</strong> ${task.model}</p>
+        <p><strong>Prompt:</strong></p>
+        <pre>${task.prompt}</pre>
+        <hr>
+      `;
+      taskOutputModalBody.appendChild(details);
+
+      task.sessions.forEach(session => {
+          const item = document.createElement('div');
+          item.className = 'comparison-item';
+          const title = document.createElement('h3');
+          title.textContent = `Session #${session.index + 1}`;
+          const content = document.createElement('pre');
+          content.textContent = session.content || session.error || '[No content]';
+          item.appendChild(title);
+          item.appendChild(content);
+          taskOutputModalBody.appendChild(item);
+      });
+
+      taskOutputModal.style.display = 'flex';
+  }
 
   // TASK MANAGER LOGIC
   const taskForm = document.getElementById('taskForm');
@@ -1427,10 +1530,19 @@
     tasks.forEach((task, index) => {
       const item = document.createElement('div');
       item.className = 'task-list-item';
+
+      let scheduleInfo = '';
+      if (task.runTime) {
+          scheduleInfo = `<span style="font-size: 10px; color: var(--text-soft); margin-left: 8px;">(Scheduled: ${new Date(task.runTime).toLocaleString()})</span>`;
+      } else if (task.delay) {
+          scheduleInfo = `<span style="font-size: 10px; color: var(--text-soft); margin-left: 8px;">(Delayed: ${task.delay} min)</span>`;
+      }
+
       item.innerHTML = `
-        <div class="task-list-item-name">${task.name}</div>
+        <div class="task-list-item-name">${task.name} ${scheduleInfo}</div>
         <div class="task-list-item-actions">
           <button class="btn-secondary" data-index="${index}" title="Run Now">▶️</button>
+          <button class="btn-secondary" data-index="${index}" title="Edit">✏️</button>
           <button class="btn-danger" data-index="${index}" title="Delete">🗑️</button>
         </div>
       `;
@@ -1491,6 +1603,8 @@
     const activeTask = {
         id: Date.now(),
         name: taskConfig.name,
+        model: model,
+        prompt: prompt,
         status: 'running',
         sessions: []
     };
@@ -1501,23 +1615,93 @@
     await runSingleIteration(apiKey, prompt, sessionCount, model, temperature, false, activeTask.sessions, renderActiveTasks);
 
     activeTask.status = 'completed';
+    // Move from active to completed
+    const taskIndex = activeTasks.findIndex(t => t.id === activeTask.id);
+    if (taskIndex > -1) {
+        activeTasks.splice(taskIndex, 1);
+    }
+    completedTasks.push(activeTask);
+
     renderActiveTasks();
+    renderCompletedTasks();
   }
 
 
+  function editTask(index) {
+    const task = tasks[index];
+    editingTaskIndex = index;
+
+    document.getElementById('taskName').value = task.name;
+    document.getElementById('taskSessionCount').value = task.sessionCount;
+    document.getElementById('taskModel').value = task.model;
+    document.getElementById('taskPrompt').value = task.prompt;
+    document.getElementById('taskDelay').value = task.delay || '';
+    document.getElementById('taskRunTime').value = task.runTime || '';
+
+    const submitButton = taskForm.querySelector('button[type="submit"]');
+    submitButton.textContent = 'Update Task';
+
+    let cancelButton = taskForm.querySelector('.btn-secondary');
+    if (!cancelButton) {
+        cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.className = 'btn-secondary';
+        cancelButton.textContent = 'Cancel';
+        cancelButton.style.marginLeft = '10px';
+        submitButton.parentNode.insertBefore(cancelButton, submitButton.nextSibling);
+        cancelButton.addEventListener('click', cancelEdit);
+    }
+  }
+
+  function cancelEdit() {
+      editingTaskIndex = null;
+      taskForm.reset();
+      const submitButton = taskForm.querySelector('button[type="submit"]');
+      submitButton.textContent = 'Save Task';
+      const cancelButton = taskForm.querySelector('.btn-secondary');
+      if (cancelButton) {
+          cancelButton.remove();
+      }
+  }
+
   taskForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const newTask = {
+    const taskData = {
       name: document.getElementById('taskName').value.trim(),
       sessionCount: parseInt(document.getElementById('taskSessionCount').value, 10),
       model: document.getElementById('taskModel').value.trim(),
       prompt: document.getElementById('taskPrompt').value.trim(),
+      delay: document.getElementById('taskDelay').value,
+      runTime: document.getElementById('taskRunTime').value,
     };
-    tasks.push(newTask);
+
+    if (editingTaskIndex !== null) {
+        tasks[editingTaskIndex] = taskData;
+    } else {
+        tasks.push(taskData);
+    }
+
     saveTasks();
     renderTaskList();
-    taskForm.reset();
+    cancelEdit();
   });
+
+  function scheduleTask(task) {
+    const delay = parseInt(task.delay, 10) * 60 * 1000;
+    const runTime = task.runTime ? new Date(task.runTime).getTime() : 0;
+    const now = new Date().getTime();
+
+    if (runTime > now) {
+        const timeout = runTime - now;
+        setTimeout(() => runTask(task), timeout);
+        showNotification(`Task "${task.name}" scheduled to run at ${new Date(runTime).toLocaleTimeString()}`);
+    } else if (delay > 0) {
+        setTimeout(() => runTask(task), delay);
+        showNotification(`Task "${task.name}" scheduled to run in ${task.delay} minutes.`);
+    } else {
+        runTask(task);
+    }
+  }
 
   taskListEl.addEventListener('click', (e) => {
     if (e.target.tagName === 'BUTTON') {
@@ -1528,7 +1712,9 @@
         saveTasks();
         renderTaskList();
       } else if (e.target.title === 'Run Now') {
-        runTask(task);
+        scheduleTask(task);
+      } else if (e.target.title === 'Edit') {
+        editTask(index);
       }
     }
   });
