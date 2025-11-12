@@ -49,7 +49,7 @@
 
     /* LAYOUT AND APP SHELL */
     .app-shell {
-      max-width: 1200px;
+      max-width: 95%;
       margin: 0 auto;
       padding: 18px 18px 22px;
       background: radial-gradient(circle at top, rgba(148, 163, 253, 0.04), transparent),
@@ -118,7 +118,7 @@
 
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 440px) minmax(0, 1.6fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 14px;
       align-items: stretch;
     }
@@ -753,6 +753,24 @@
       display: flex;
       gap: 8px;
     }
+
+    .task-item {
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        padding: 10px;
+        margin-bottom: 10px;
+        background: rgba(15, 23, 42, 0.98);
+    }
+    .task-item-header {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .task-sessions-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 5px;
+    }
   </style>
 </head>
 <body>
@@ -763,231 +781,220 @@
   <!-- HEADER -->
   <div class="header">
     <div class="title-block">
-      <div class="title">
-        Multi-Session LLM Runner
-        <span class="title-pill">
-          <span class="mini-dot"></span> OpenRouter Client
-        </span>
-      </div>
-      <div class="subtitle">
-        Fire your prompt into many parallel sessions, compare outputs instantly, and keep everything readable even at scale.
-      </div>
+        <div class="title">
+            Multi-Session LLM Runner
+            <span class="title-pill">
+                <span class="mini-dot"></span> OpenRouter Client
+            </span>
+        </div>
+        <div class="subtitle">
+            Fire your prompt into many parallel sessions, compare outputs instantly, and keep everything readable even at scale.
+        </div>
     </div>
     <div>
-      <div class="badge-key">
-        <span>Client-side only</span>
-        <span style="width:5px;height:5px;border-radius:999px;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.9);"></span>
-        <span style="color:var(--text-soft);">Your key never leaves your browser</span>
-      </div>
+        <div class="badge-key">
+            <span>Client-side only</span>
+            <span style="width:5px;height:5px;border-radius:999px;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.9);"></span>
+            <span style="color:var(--text-soft);">Your key never leaves your browser</span>
+        </div>
     </div>
-    <div class="button-group">
-        <button id="taskManagerButton" type="button" class="btn-secondary">
-            <span class="btn-icon">📋</span>
-            <span>Task Manager</span>
-        </button>
+</div>
+
+<!-- INPUTS -->
+<div class="panel">
+    <div class="panel-content">
+        <form id="multiForm">
+            <div class="row">
+                <div style="flex: 2;">
+                    <label for="apiKey">OpenRouter API Key</label>
+                    <input id="apiKey" type="password" placeholder="SK-or-..." value="" required />
+                </div>
+                <div style="flex: 2;">
+                    <label for="model">Model ID</label>
+                    <input id="model" type="text" value="mistralai/mistral-7b-instruct:free" />
+                </div>
+                <div style="flex: 1;">
+                    <label for="temperature">Temperature</label>
+                    <input id="temperature" type="number" min="0" max="2" step="0.1" value="0.7" />
+                </div>
+            </div>
+            <div class="row">
+                <div style="flex: 1;">
+                    <label for="sessionCount">Number of sessions</label>
+                    <input id="sessionCount" type="number" min="1" max="1000" value="3" required />
+                </div>
+                <div style="flex: 1;">
+                    <label for="timeLimit">Time limit (minutes, 0 for none)</label>
+                    <input id="timeLimit" type="number" min="0" value="0" />
+                </div>
+                <div class="append-row" style="flex: 1; align-self: center; margin-top: 10px;">
+                    <input type="checkbox" id="appendSessions" />
+                    <label for="appendSessions" style="margin:0; font-weight:400; color:var(--text-soft);">
+                        Append sessions instead of resetting
+                    </label>
+                </div>
+            </div>
+            <div class="row">
+                <div style="flex: 3;">
+                    <label for="prompt">Prompt</label>
+                    <textarea id="prompt" placeholder="Type your prompt here, or pick a template below."></textarea>
+                </div>
+                <div style="flex: 1;">
+                    <label for="template">Template (optional)</label>
+                    <select id="template">
+                        <option value="">None</option>
+                        <option value="brainstorm-ideas">Brainstorm: 10 creative ideas for X</option>
+                        <option value="summarize">Summarize: clear, concise summary</option>
+                        <option value="cold-email">Cold email: short, direct outreach</option>
+                        <option value="code-review">Code review: analyze and improve code</option>
+                    </select>
+                </div>
+            </div>
+            <div class="button-group">
+                <button id="runButton" type="button" class="btn-primary">
+                    <span class="spark"></span>
+                    <span class="btn-icon">⚡</span>
+                    <span>Run Sessions</span>
+                </button>
+                <button id="saveButton" type="button" class="btn-secondary">
+                    <span class="btn-icon">💾</span>
+                    <span>Save</span>
+                </button>
+                <button id="loadButton" type="button" class="btn-secondary">
+                    <span class="btn-icon">📂</span>
+                    <span>Load</span>
+                </button>
+                <button id="clearButton" type="button" class="btn-danger">
+                    <span class="btn-icon">🗑️</span>
+                    <span>Clear</span>
+                </button>
+            </div>
+            <div id="error" class="error"></div>
+        </form>
     </div>
-  </div>
+</div>
 
   <!-- MAIN LAYOUT -->
   <div class="layout">
 
-    <!-- LEFT: INPUT PANEL -->
+    <!-- Main Sessions Panel -->
     <div class="panel">
-      <div class="panel-content">
-        <form id="multiForm">
-      
-          <div>
-            <label for="apiKey">OpenRouter API Key</label>
-            <input
-              id="apiKey"
-              type="password"
-              placeholder="SK-or-..."
-              value=""
-              required
-            />
- 
-            <div class="helper">
-              Used only in your browser to call the OpenRouter API.
-              Not stored, not sent to any other server.
+        <div class="panel-content">
+            <div class="sessions-panel-header">
+                <div>
+                    <div class="sessions-title"><span>Sessions Overview</span></div>
+                    <div class="sessions-subtitle">Track all sessions, filter by status, and focus on one result at a time.</div>
+                </div>
+                <button id="compareButton" class="btn-secondary" style="display: none;">
+                    <span class="btn-icon">⚖️</span>
+                    <span>Compare Selected</span>
+                </button>
             </div>
-          </div>
-
-          <div>
-            <label for="prompt">Prompt</label>
-            <textarea
-              id="prompt"
-              placeholder="Type your prompt here, or pick a template below."
-            ></textarea>
-          </div>
-
-          <div>
-            <label for="template">Template (optional)</label>
-            <select id="template">
-              <option value="">None</option>
-              <option value="brainstorm-ideas">Brainstorm: 10 creative ideas for X</option>
-              <option value="summarize">Summarize: clear, concise summary</option>
-              <option value="cold-email">Cold email: short, direct outreach</option>
-              <option value="code-review">Code review: analyze and improve code</option>
-            </select>
-            <div class="helper">
-              If you enter a prompt, it takes priority over the selected template.
+            <div class="sessions-layout">
+                <div class="session-list">
+                    <div class="session-list-header">
+                        <div>Sessions</div>
+                        <div class="session-filter">
+                            <button class="filter-pill active" data-filter="all" type="button">All</button>
+                            <button class="filter-pill" data-filter="done" type="button">Done</button>
+                            <button class="filter-pill" data-filter="error" type="button">Error</button>
+                        </div>
+                    </div>
+                    <div id="sessionListItems">
+                        <div class="session-placeholder">Start a run to see sessions here.</div>
+                    </div>
+                </div>
+                <div class="session-detail">
+                    <div class="session-detail-header">
+                        <div class="session-detail-label">
+                            <strong id="detailSessionTitle">No session selected</strong>
+                            <span id="detailSessionInfo"></span>
+                        </div>
+                        <div id="detailStatusChip" class="status-chip">
+                            <span class="pulse"></span>
+                            <span>Status</span>
+                        </div>
+                    </div>
+                    <div class="session-body">
+                        <pre id="detailContent" class="session-placeholder">Run sessions to view results. Click a session on the left to focus its response here.</pre>
+                    </div>
+                </div>
             </div>
-          </div>
-
-          <div class="row">
-            <div>
-              <label for="sessionCount">Number of sessions</label>
-              <input
-                id="sessionCount"
-                type="number"
-                min="1"
-                max="10"
-                value="3"
-                required
-              />
-            </div>
-            <div>
-  
-              <label for="model">Model ID</label>
-              <input
-                id="model"
-                type="text"
-                value="mistralai/mistral-7b-instruct:free"
-              />
-         
-              <div class="helper">
-                Must be an OpenRouter compatible model ID (e.g., anthropic/claude-3-haiku).
-              </div>
-            </div>
-            <div>
-              <label for="temperature">Temperature</label>
-              <input
-                id="temperature"
-                type="number"
-                min="0"
-                max="2"
-                step="0.1"
-                value="0.7"
-              />
-            </div>
-          </div>
-
-          <div class="row">
-            <div>
-              <label for="timeLimit">Time limit (minutes, 0 for none)</label>
-              <input
-                id="timeLimit"
-                type="number"
-                min="0"
-                value="0"
-              />
-            </div>
-          </div>
-
-          <!-- Append toggle -->
-          <div class="append-row">
-            <input type="checkbox" id="appendSessions" />
-            <label for="appendSessions" style="margin:0; font-weight:400; color:var(--text-soft);">
-              Append sessions instead of resetting previous ones
-            </label>
-          </div>
-
-          <div class="button-group">
-            <button id="runButton" type="button" class="btn-primary">
-              <span class="spark"></span>
-              <span class="btn-icon">⚡</span>
-              <span>Run Sessions</span>
-            </button>
-            <button id="runIndefinitelyButton" type="button" class="btn-primary" style="background: linear-gradient(to right, #22c55e, #16a34a);">
-              <span class="spark"></span>
-              <span class="btn-icon">🔄</span>
-              <span>Run Indefinitely</span>
-            </button>
-            <button id="stopButton" type="button" class="btn-danger" style="display: none;">
-                <span class="btn-icon">⏹️</span>
-                <span>Stop</span>
-            </button>
-            <button id="saveButton" type="button" class="btn-secondary">
-              <span class="btn-icon">💾</span>
-              <span>Save</span>
-            </button>
-            <button id="loadButton" type="button" class="btn-secondary">
-              <span class="btn-icon">📂</span>
-              <span>Load</span>
-            </button>
-            <button id="clearButton" type="button" class="btn-danger">
-              <span class="btn-icon">🗑️</span>
-              <span>Clear</span>
-            </button>
-          </div>
-          <div id="error" class="error"></div>
-        </form>
-      </div>
+        </div>
     </div>
 
-    <!-- RIGHT: SESSIONS PANEL -->
+    <!-- Task Manager Panel -->
     <div class="panel">
-      <div 
-      class="panel-content">
-        <div class="sessions-panel-header">
-          <div>
-            <div class="sessions-title">
-              <span>Sessions Overview</span>
+        <div class="panel-content">
+            <div class="sessions-panel-header">
+                <div>
+                    <div class="sessions-title"><span>Task Manager</span></div>
+                    <div class="sessions-subtitle">Create and manage repeatable tasks.</div>
+                </div>
             </div>
-            <div class="sessions-subtitle">
-              Track all sessions, filter by status, and focus on one result at a time.
+            <div>
+                <h3>Create a New Task</h3>
+                <form id="taskForm">
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskName">Task Name</label>
+                        <input type="text" id="taskName" placeholder="e.g., Creative Writing" required>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskSessionCount">Number of Sessions</label>
+                        <input type="number" id="taskSessionCount" min="1" max="1000" value="3" required>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskModel">Model ID</label>
+                        <input type="text" id="taskModel" value="mistralai/mistral-7b-instruct:free">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label for="taskPrompt">Prompt (leave blank for random)</label>
+                        <textarea id="taskPrompt" placeholder="e.g., Write a story about..."></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary">Save Task</button>
+                </form>
             </div>
-          </div>
-          <button id="compareButton" class="btn-secondary" style="display: none;">
-            <span class="btn-icon">⚖️</span>
-            <span>Compare Selected</span>
-          </button>
+            <div>
+                <h3>Saved Tasks</h3>
+                <div id="taskList" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
+            <div>
+                <h3>Active Tasks</h3>
+                <div id="activeTaskList" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
         </div>
-
-        <div class="sessions-layout">
-          <!-- Session navigation -->
-          <div class="session-list">
-            <div class="session-list-header">
-              <div>Sessions</div>
-              <div class="session-filter">
-       
-                <button class="filter-pill active" data-filter="all" type="button">All</button>
-                <button class="filter-pill" data-filter="done" type="button">Done</button>
-                <button class="filter-pill" data-filter="error" type="button">Error</button>
-              </div>
-            </div>
-            <div id="sessionListItems">
-          
-              <div class="session-placeholder">
-                Start a run to see sessions here.
-              </div>
-            </div>
-          </div>
-
-          <!-- Session detail display -->
-          <div class="session-detail">
-            <div class="session-detail-header">
-              <div class="session-detail-label">
-                <strong id="detailSessionTitle">No session selected</strong>
-      
-                <span id="detailSessionInfo"></span>
-              </div>
-              <div id="detailStatusChip" class="status-chip">
-                <span class="pulse"></span>
-                <span>Status</span>
-              </div>
-            
-            </div>
-            <div class="session-body">
-              <pre id="detailContent" class="session-placeholder">
-Run sessions to view results.
-Click a session on the left to focus its response here.</pre>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
-  </div>
+
+    <!-- Indefinite Run Panel -->
+    <div class="panel">
+        <div class="panel-content">
+            <div class="sessions-panel-header">
+                <div>
+                    <div class="sessions-title"><span>Indefinite Run</span></div>
+                    <div class="sessions-subtitle">Continuously run sessions with new prompts.</div>
+                </div>
+            </div>
+            <div>
+                <label for="indefinitePrompt">Prompt</label>
+                <textarea id="indefinitePrompt" placeholder="Type your prompt here. It will be used to generate new prompts."></textarea>
+            </div>
+            <div class="button-group">
+                <button id="runIndefinitelyButton" type="button" class="btn-primary" style="background: linear-gradient(to right, #22c55e, #16a34a);">
+                    <span class="spark"></span>
+                    <span class="btn-icon">🔄</span>
+                    <span>Run Indefinitely</span>
+                </button>
+                <button id="stopButton" type="button" class="btn-danger" style="display: none;">
+                    <span class="btn-icon">⏹️</span>
+                    <span>Stop</span>
+                </button>
+            </div>
+            <div class="session-body" style="margin-top: 10px;">
+                <pre id="indefiniteRunOutput" class="session-placeholder">Indefinite run output will appear here.</pre>
+            </div>
+        </div>
+    </div>
+</div>
 
   <div class="footer-note">
     <span>
@@ -1006,43 +1013,6 @@ Click a session on the left to focus its response here.</pre>
         <button id="closeModal" class="modal-close-btn">&times;</button>
       </div>
       <div id="compareContent" class="modal-body"></div>
-    </div>
-  </div>
-
-  <div id="taskManagerModal" class="modal-overlay" style="display: none;">
-    <div class="modal-content" style="max-width: 800px;">
-        <div class="modal-header">
-            <h2>Task Manager</h2>
-            <button id="closeTaskManagerModal" class="modal-close-btn">&times;</button>
-        </div>
-        <div class="modal-body" style="grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div>
-                <h3>Create a New Task</h3>
-                <form id="taskForm">
-                    <div style="margin-bottom: 10px;">
-                        <label for="taskName">Task Name</label>
-                        <input type="text" id="taskName" placeholder="e.g., Creative Writing" required>
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label for="taskSessionCount">Number of Sessions</label>
-                        <input type="number" id="taskSessionCount" min="1" max="10" value="3" required>
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label for="taskModel">Model ID</label>
-                        <input type="text" id="taskModel" value="mistralai/mistral-7b-instruct:free">
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label for="taskPrompt">Prompt (leave blank for random)</label>
-                        <textarea id="taskPrompt" placeholder="e.g., Write a story about..."></textarea>
-                    </div>
-                    <button type="submit" class="btn-primary">Save Task</button>
-                </form>
-            </div>
-            <div>
-                <h3>Saved Tasks</h3>
-                <div id="taskList" style="max-height: 300px; overflow-y: auto;"></div>
-            </div>
-        </div>
     </div>
   </div>
 
@@ -1085,6 +1055,7 @@ Click a session on the left to focus its response here.</pre>
   let activeSessionIndex = null;
   let currentFilter = 'all';
   let tasks = [];
+  let activeTasks = [];
 
   // PROMPT TEMPLATES
   function getTemplatePrompt(id) {
@@ -1343,33 +1314,64 @@ Click a session on the left to focus its response here.</pre>
   }
 
   saveButton.addEventListener('click', () => {
-    if (sessions.length === 0) {
-        showNotification('No sessions to save.', true);
-        return;
-    }
-    localStorage.setItem('multiSessionLLM-sessions', JSON.stringify(sessions));
-    showNotification('Sessions saved successfully!');
+    const dataToSave = {
+        sessions: sessions,
+        tasks: tasks,
+        activeTasks: activeTasks,
+        inputs: {
+            apiKey: document.getElementById('apiKey').value,
+            prompt: document.getElementById('prompt').value,
+            sessionCount: document.getElementById('sessionCount').value,
+            model: document.getElementById('model').value,
+            temperature: document.getElementById('temperature').value,
+            timeLimit: document.getElementById('timeLimit').value,
+            appendSessions: document.getElementById('appendSessions').checked,
+            indefinitePrompt: document.getElementById('indefinitePrompt').value
+        }
+    };
+    localStorage.setItem('multiSessionLLM-data', JSON.stringify(dataToSave));
+    showNotification('Everything saved successfully!');
   });
 
   loadButton.addEventListener('click', () => {
-    const savedSessions = localStorage.getItem('multiSessionLLM-sessions');
-    if (savedSessions) {
-        sessions = JSON.parse(savedSessions);
+    const savedData = localStorage.getItem('multiSessionLLM-data');
+    if (savedData) {
+        const data = JSON.parse(savedData);
+        sessions = data.sessions || [];
+        tasks = data.tasks || [];
+        activeTasks = data.activeTasks || [];
+
+        const inputs = data.inputs || {};
+        document.getElementById('apiKey').value = inputs.apiKey || '';
+        document.getElementById('prompt').value = inputs.prompt || '';
+        document.getElementById('sessionCount').value = inputs.sessionCount || 3;
+        document.getElementById('model').value = inputs.model || 'mistralai/mistral-7b-instruct:free';
+        document.getElementById('temperature').value = inputs.temperature || 0.7;
+        document.getElementById('timeLimit').value = inputs.timeLimit || 0;
+        document.getElementById('appendSessions').checked = inputs.appendSessions || false;
+        document.getElementById('indefinitePrompt').value = inputs.indefinitePrompt || '';
+
         renderSessionList();
-        setActiveSession(null); // Deselect any active session
-        showNotification('Sessions loaded successfully!');
+        renderTaskList();
+        renderActiveTasks();
+        setActiveSession(null);
+        showNotification('Loaded saved state successfully!');
     } else {
-        showNotification('No saved sessions found.', true);
+        showNotification('No saved data found.', true);
     }
   });
 
   clearButton.addEventListener('click', () => {
-    localStorage.removeItem('multiSessionLLM-sessions');
+    localStorage.removeItem('multiSessionLLM-data');
     sessions = [];
+    tasks = [];
+    activeTasks = [];
     activeSessionIndex = null;
     renderSessionList();
+    renderTaskList();
+    renderActiveTasks();
     setActiveSession(null);
-    showNotification('Cleared saved sessions.');
+    showNotification('Cleared all saved data.');
   });
 
   compareButton.addEventListener('click', () => {
@@ -1397,15 +1399,9 @@ Click a session on the left to focus its response here.</pre>
     if (event.target === compareModal) {
         compareModal.style.display = 'none';
     }
-    if (event.target === taskManagerModal) {
-        taskManagerModal.style.display = 'none';
-    }
   });
 
   // TASK MANAGER LOGIC
-  const taskManagerButton = document.getElementById('taskManagerButton');
-  const taskManagerModal = document.getElementById('taskManagerModal');
-  const closeTaskManagerModal = document.getElementById('closeTaskManagerModal');
   const taskForm = document.getElementById('taskForm');
   const taskListEl = document.getElementById('taskList');
 
@@ -1435,7 +1431,6 @@ Click a session on the left to focus its response here.</pre>
         <div class="task-list-item-name">${task.name}</div>
         <div class="task-list-item-actions">
           <button class="btn-secondary" data-index="${index}" title="Run Now">▶️</button>
-          <button class="btn-secondary" data-index="${index}" title="Schedule">🗓️</button>
           <button class="btn-danger" data-index="${index}" title="Delete">🗑️</button>
         </div>
       `;
@@ -1443,39 +1438,72 @@ Click a session on the left to focus its response here.</pre>
     });
   }
 
-  function runTask(task) {
-    document.getElementById('sessionCount').value = task.sessionCount;
-    document.getElementById('model').value = task.model;
-    document.getElementById('prompt').value = task.prompt;
-
-    // If prompt is empty, generate a random one
-    if (!task.prompt) {
-        const apiKey = document.getElementById('apiKey').value.trim();
-        if (apiKey && task.model) {
-            generateNewPrompt(apiKey, task.model, "Write a random sentence.").then(newPrompt => {
-                document.getElementById('prompt').value = newPrompt;
-                document.getElementById('runButton').click();
-            });
-        } else {
-            showNotification('API key and model needed to generate a random prompt for the task.', true);
-        }
-    } else {
-        document.getElementById('runButton').click();
+  function renderActiveTasks() {
+    const activeTaskListEl = document.getElementById('activeTaskList');
+    activeTaskListEl.innerHTML = '';
+    if (activeTasks.length === 0) {
+        activeTaskListEl.innerHTML = '<div class="session-placeholder">No active tasks. Run a saved task to see it here.</div>';
+        return;
     }
 
-    taskManagerModal.style.display = 'none';
-    showNotification(`Running task: ${task.name}`);
-}
+    activeTasks.forEach(task => {
+        const taskItem = document.createElement('div');
+        taskItem.className = 'task-item';
 
+        const header = document.createElement('div');
+        header.className = 'task-item-header';
+        header.innerHTML = `<span>${task.name}</span> - <span>Status: ${task.status}</span>`;
+        taskItem.appendChild(header);
 
-  taskManagerButton.addEventListener('click', () => {
-    taskManagerModal.style.display = 'flex';
-    renderTaskList();
-  });
+        const sessionsContainer = document.createElement('div');
+        sessionsContainer.className = 'task-sessions-container';
+        task.sessions.forEach(session => {
+            const sessionEl = document.createElement('div');
+            sessionEl.className = `session-list-item ${session.status}`;
+            sessionEl.innerHTML = `
+                <span class="dot"></span>
+                <span>#${session.index + 1}</span>
+                <span class="state">${session.status}</span>
+            `;
+            sessionsContainer.appendChild(sessionEl);
+        });
+        taskItem.appendChild(sessionsContainer);
+        activeTaskListEl.appendChild(taskItem);
+    });
+  }
 
-  closeTaskManagerModal.addEventListener('click', () => {
-    taskManagerModal.style.display = 'none';
-  });
+  async function runTask(taskConfig) {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const model = taskConfig.model;
+    const sessionCount = taskConfig.sessionCount;
+    let prompt = taskConfig.prompt;
+    const temperature = parseFloat(document.getElementById('temperature').value) || 0.7;
+
+    if (!apiKey || !model) {
+        showNotification('API key and model are required to run a task.', true);
+        return;
+    }
+
+    if (!prompt) {
+        prompt = await generateNewPrompt(apiKey, model, "Write a random sentence.");
+    }
+
+    const activeTask = {
+        id: Date.now(),
+        name: taskConfig.name,
+        status: 'running',
+        sessions: []
+    };
+    activeTasks.push(activeTask);
+    renderActiveTasks();
+
+    showNotification(`Running task: ${taskConfig.name}`);
+    await runSingleIteration(apiKey, prompt, sessionCount, model, temperature, false, activeTask.sessions, renderActiveTasks);
+
+    activeTask.status = 'completed';
+    renderActiveTasks();
+  }
+
 
   taskForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1501,17 +1529,14 @@ Click a session on the left to focus its response here.</pre>
         renderTaskList();
       } else if (e.target.title === 'Run Now') {
         runTask(task);
-      } else if (e.target.title === 'Schedule') {
-        const delay = prompt('Enter delay in minutes:', '10');
-        if (delay) {
-            setTimeout(() => runTask(task), parseInt(delay, 10) * 60 * 1000);
-            showNotification(`Task "${task.name}" scheduled to run in ${delay} minutes.`);
-        }
       }
     }
   });
 
-  document.addEventListener('DOMContentLoaded', loadTasks);
+  document.addEventListener('DOMContentLoaded', () => {
+      loadTasks();
+      renderActiveTasks();
+  });
 
   // MAIN RUN LOGIC
   let isRunningIndefinitely = false;
@@ -1540,40 +1565,37 @@ Click a session on the left to focus its response here.</pre>
     errorEl.textContent = '';
 
     const apiKey = document.getElementById('apiKey').value.trim();
-    const promptInput = document.getElementById('prompt').value.trim();
-    const templateId = document.getElementById('template').value;
-    const sessionCountInput = document.getElementById('sessionCount').value;
-    const sessionCount = parseInt(sessionCountInput, 10);
+    const promptInput = document.getElementById('indefinitePrompt').value.trim();
+    const sessionCount = 1;
     const model = document.getElementById('model').value.trim();
     const temperature = parseFloat(document.getElementById('temperature').value) || 0.7;
-    const append = appendCheckbox.checked;
 
-    if (!apiKey || !model || !sessionCount || sessionCount < 1 || sessionCount > 10) {
-      showNotification('Please check your API key, model, and session count (1-10).', true);
+    if (!apiKey || !model) {
+      showNotification('Please check your API key and model.', true);
       stopIndefiniteRun();
       return;
     }
 
-    let finalPrompt = promptInput;
-    if (!finalPrompt && templateId) {
-      finalPrompt = getTemplatePrompt(templateId);
-    }
-    if (!finalPrompt) {
-      showNotification('Enter a prompt or choose a template.', true);
+    if (!promptInput) {
+      showNotification('Enter a prompt for the indefinite run.', true);
       stopIndefiniteRun();
       return;
     }
-
-    // Run a single iteration
-    await runSingleIteration(apiKey, finalPrompt, sessionCount, model, temperature, append);
 
     // Generate the next prompt
-    const newPrompt = await generateNewPrompt(apiKey, model, finalPrompt);
-    document.getElementById('prompt').value = newPrompt;
+    const newPrompt = await generateNewPrompt(apiKey, model, promptInput);
+    document.getElementById('indefinitePrompt').value = newPrompt;
+    document.getElementById('indefiniteRunOutput').textContent = `Running with prompt: ${newPrompt}`;
 
-    // Loop
+    await runSingleIteration(apiKey, newPrompt, sessionCount, model, temperature, true, sessions, () => {
+        renderSessionList();
+        if (sessions.length > 0) {
+            setActiveSession(sessions[sessions.length - 1].index);
+        }
+    });
+
     if (isRunningIndefinitely) {
-      runIndefinitely();
+      indefiniteRunTimeout = setTimeout(runIndefinitely, 1000);
     }
   }
 
@@ -1591,6 +1613,7 @@ Click a session on the left to focus its response here.</pre>
     runIndefinitelyButton.style.display = 'none';
     stopButton.style.display = 'inline-flex';
     runButton.disabled = true;
+    document.getElementById('indefiniteRunOutput').textContent = '';
 
     const timeLimitInput = document.getElementById('timeLimit').value;
     const timeLimit = parseInt(timeLimitInput, 10) * 60 * 1000;
@@ -1609,29 +1632,22 @@ Click a session on the left to focus its response here.</pre>
 
   stopButton.addEventListener('click', stopIndefiniteRun);
 
-  async function runSingleIteration(apiKey, prompt, sessionCount, model, temperature, append) {
-    let startIndex;
-    if (append && sessions.length > 0) {
-      startIndex = sessions.length;
-    } else {
-      sessions = [];
-      activeSessionIndex = null;
-      startIndex = 0;
+  async function runSingleIteration(apiKey, prompt, sessionCount, model, temperature, append, sessionArray, renderCallback) {
+    let startIndex = append ? sessionArray.length : 0;
+    if (!append) {
+        sessionArray.length = 0;
     }
 
     const newSessions = [];
     for (let i = 0; i < sessionCount; i++) {
       const idx = startIndex + i;
       const sessionObj = { index: idx, status: 'pending', content: '', error: null };
-      sessions.push(sessionObj);
+      sessionArray.push(sessionObj);
       newSessions.push(sessionObj);
     }
-    renderSessionList();
-    if (activeSessionIndex === null && newSessions.length > 0) {
-      setActiveSession(newSessions[0].index);
-    }
+    if(renderCallback) renderCallback();
 
-    const tasks = newSessions.map((s) => (async () => {
+    const apiTasks = newSessions.map((s) => (async () => {
       try {
         const content = await callOpenRouter({ apiKey, model, prompt, temperature, sessionIndex: s.index });
         s.status = 'done';
@@ -1640,12 +1656,9 @@ Click a session on the left to focus its response here.</pre>
         s.status = 'error';
         s.error = err.message || 'Unknown error';
       }
-      renderSessionList();
-      if (activeSessionIndex === s.index) {
-        setActiveSession(s.index);
-      }
+      if(renderCallback) renderCallback();
     })());
-    await Promise.allSettled(tasks);
+    await Promise.allSettled(apiTasks);
   }
 
   runButton.addEventListener('click', async (e) => {
@@ -1670,8 +1683,8 @@ Click a session on the left to focus its response here.</pre>
       return;
     }
 
-    if (!sessionCount || sessionCount < 1 || sessionCount > 10) {
-      errorEl.textContent = 'Number of sessions must be between 1 and 10 for stability.';
+    if (!sessionCount || sessionCount < 1 || sessionCount > 1000) {
+      errorEl.textContent = 'Number of sessions must be between 1 and 1000.';
       return;
     }
 
@@ -1688,7 +1701,16 @@ Click a session on the left to focus its response here.</pre>
     runButton.disabled = true;
     runButton.innerHTML = '<span class="spark"></span><span class="btn-icon">⏳</span><span>Running...</span>';
 
-    await runSingleIteration(apiKey, finalPrompt, sessionCount, model, temperature, append);
+    if (!append) {
+        activeSessionIndex = null;
+    }
+
+    await runSingleIteration(apiKey, finalPrompt, sessionCount, model, temperature, append, sessions, () => {
+        renderSessionList();
+        if (activeSessionIndex === null && sessions.length > 0) {
+            setActiveSession(sessions[0].index);
+        }
+    });
 
     runButton.disabled = false;
     runButton.innerHTML = '<span class="spark"></span><span class="btn-icon">⚡</span><span>Run Sessions</span>';
